@@ -13,71 +13,102 @@ import { Pressable } from "react-native";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 
+const LoginSchema = Yup.object().shape({
+  email: Yup.string().email("Invalid email address").required("Email is required"),
+  password: Yup.string().min(6, "Password must be at least 6 characters").required("Password is required"),
+});
+
 export default function LoginScreen({ navigation }: Props) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [secureTextEntry, setSecureTextEntry] = useState(true);
 
-  const handleLogin = async () => {
-    setErrorMsg(""); // Clear previous errors
+  const toggleSecureEntry = useCallback(() => {
+    setSecureTextEntry((prev) => !prev);
+  }, []);
 
-    if (!email.trim() || !password.trim()) {
-      setErrorMsg("Please enter both email and password.");
-      return;
-    }
-
+const handleLogin = useCallback(async (values: { email: string; password: string }, { setFieldError }: any) => {
     setLoading(true);
     try {
-      const data = await loginUser({ email, password });
-
+      const data = await loginUser({ email: values.email, password: values.password });
       if (data?.access_token) {
         navigation.navigate("Dashboard", { token: data.access_token });
       } else {
-        setErrorMsg("Invalid login credentials.");
+        setFieldError("general", "Invalid login credentials.");
       }
     } catch (error: any) {
       console.error("Login error:", error);
-      setErrorMsg(error.response?.data?.detail || "Login failed. Try again.");
+      setFieldError("general", error.response?.data?.detail || "Login failed. Try again.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigation]);
 
   return (
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
     <View style={styles.container}>
       <Text style={styles.title}>Login</Text>
-
-      {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
-
-      <TextInput
-        placeholder="Email"
-        placeholderTextColor="#888" // Makes placeholder visible
-        value={email}
-        onChangeText={setEmail}
-        style={[styles.input, { color: "black" }]} // Ensures text is black
-      />
-      <TextInput
-        placeholder="Password"
-        placeholderTextColor="#888"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      style={[styles.input, { color: "black" }]}
-      />
-
+        <Formik
+          initialValues={{ email: "", password: "" }}
+          validationSchema={LoginSchema}
+          onSubmit={handleLogin}
+      >
+        {({ handleChange, handleBlur, handleSubmit, values, errors, touched }) => (
+          <>
+          {errors.general && <Text style={styles.errorText}>{errors.general}</Text>}
+        
+ <View style={styles.inputContainer}>
+                <TextInput
+                  placeholder="Email"
+                  placeholderTextColor="#888"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  style={styles.input}
+                  onChangeText={handleChange("email")}
+                  onBlur={handleBlur("email")}
+                  value={values.email}
+                />
+        {errors.email && touched.email && <Text style={styles.errorText}>{errors.email}</Text>}
+ </View>
+              
+              <View style={styles.inputContainer}>
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    placeholder="Password"
+                    placeholderTextColor="#888"
+                    autoCapitalize="none"
+                    secureTextEntry={secureTextEntry}
+                    style={[styles.input, { flex: 1 }]}
+                    onChangeText={handleChange("password")}
+                    onBlur={handleBlur("password")}
+                    value={values.password}
+                    onSubmitEditing={handleSubmit}
+                  />
+                  <TouchableOpacity onPress={toggleSecureEntry} style={styles.eyeIcon}>
+                    <Icon name={secureTextEntry ? "eye-off" : "eye"} size={24} color="#888" />
+                  </TouchableOpacity>
+                </View>
+                {errors.password && touched.password && <Text style={styles.errorText}>{errors.password}</Text>}
+              </View>
+            
       {loading ? (
         <ActivityIndicator size="large" color="#0000ff" style={styles.spinner} />
       ) : (
-        <Pressable style={styles.button} onPress={handleLogin}>
-          <Text style={styles.buttonText}>Login</Text>
-        </Pressable>
+                <TouchableOpacity style={styles.button} onPress={handleSubmit}>
+                  <Text style={styles.buttonText}>Login</Text>
+                </TouchableOpacity>
       )}
 
-      <Pressable style={styles.registerButton} onPress={() => navigation.navigate("Register")}>
-        <Text style={styles.registerText}>Don't have an account? Register</Text>
-      </Pressable>
-    </View>
+ <TouchableOpacity style={styles.registerButton} onPress={() => navigation.navigate("Register")}>
+                <Text style={styles.registerText}>Don't have an account? Register</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </Formik>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -95,6 +126,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 20,
   },
+    inputContainer: {
+    marginBottom: 12,
+    },
   input: {
     borderWidth: 1,
     borderColor: "#ccc",
@@ -102,6 +136,18 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 6,
     marginBottom: 12,
+  },
+   passwordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#ccc",
+    backgroundColor: "#f9f9f9",
+    borderRadius: 6,
+    paddingRight: 12,
+  },
+    eyeIcon: {
+    padding: 10,
   },
   errorText: {
     color: "red",
